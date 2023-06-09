@@ -1,25 +1,36 @@
 require("dotenv").config(); // ALLOWS ENVIRONMENT VARIABLES TO BE SET ON PROCESS.ENV SHOULD BE AT TOP
+require('express-async-errors')
 
 const express = require("express");
 const app = express();
 
-// Middleware
+// REQUIRE ROUTES
+const postRouter = require('./routes/postRoutes')
+
+// REQUIRE MIDDLEWARES
+const errorHandlerMiddleware = require('./middlewares/error-handler')
+const notFoundMiddleWare = require('./middlewares/not-found')
+
+// MIDDLEWARE
 app.use(express.json()); // parse json bodies in the request object
 
-// Redirect requests to endpoint starting with /posts to postRoutes.js
-// app.use("/posts", require("./routes/postRoutes"));
+// ROUTES
+app.use('/api/v1/posts', postRouter)
 
-// Global Error Handler. IMPORTANT function params MUST start with err
-app.use((err, req, res, next) => {
-  console.log(err.stack);
-  console.log(err.name);
-  console.log(err.code);
-
-  res.status(500).json({
-    message: "Something went rely wrong",
-  });
-});
+// MIDDLEWARE
+app.use(notFoundMiddleWare);
+app.use(errorHandlerMiddleware);
 
 // Listen on pc port
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on PORT ${PORT}`));
+
+const start = async () => {
+  try {
+    app.listen(PORT, () => console.log(`Server running on PORT ${PORT}`));
+  }
+  catch (error) {
+    console.log(error);
+  }
+}
+
+start()
