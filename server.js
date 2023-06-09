@@ -6,6 +6,7 @@ const app = express();
 
 // REQUIRE ROUTES
 const postRouter = require('./routes/postRoutes')
+const authRouter = require('./routes/authRoutes')
 
 // REQUIRE MIDDLEWARES
 const errorHandlerMiddleware = require('./middlewares/error-handler')
@@ -16,6 +17,7 @@ app.use(express.json()); // parse json bodies in the request object
 
 // ROUTES
 app.use('/api/v1/posts', postRouter)
+app.use('/api/v1/auth', authRouter)
 
 // MIDDLEWARE
 app.use(notFoundMiddleWare);

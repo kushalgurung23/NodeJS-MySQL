@@ -1,5 +1,5 @@
 const db = require('../config/db')
-const getCurrentDateTime = require('../utils/current_date_time')
+const {getCurrentDateTime} = require('../utils')
 
 class Post {
     constructor({title, body}) {
