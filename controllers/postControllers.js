@@ -30,9 +30,8 @@ const getPostById = async (req, res) => {
 
 const updatePost = async (req, res) => {
     const {id:postId} = req.params
-    const {title, body} = req.body
   
-    if(!title && !body) {
+    if(Object.keys(req.body).length === 0) {
         throw new CustomError.BadRequestError('Post details cannot be empty')
     }
     const post = await Post.findById(postId)

@@ -31,6 +31,42 @@ class User {
         const [user, _] = await db.execute(sql, [email])
         return user[0]
     }
+
+    // after correct 6 digit is entered by user
+    static async confirmEmailVerification({email}) {
+        const dateTime = getCurrentDateTime()
+        const sql = `
+        UPDATE users set verification_token = ?, is_verified = ?, verified_on = ?, updated_at = ? WHERE email = ?
+        `
+        await db.execute(sql, [null, true, dateTime, dateTime, email])
+    }
+
+    // if user wants another verification token for registration
+    static async updateVerificationToken({newToken, email}) {
+        const dateTime = getCurrentDateTime()
+        const sql = `
+        UPDATE users set verification_token = ?, updated_at = ? WHERE email = ?
+        `
+        await db.execute(sql, [newToken, dateTime, email])
+    }
+
+    // if user has forgotten the password
+    static async updateForgotPasswordToken({passwordForgotToken, passwordForgotTokenExpirationDate, email}) {
+        const dateTime = getCurrentDateTime()
+        const sql = `
+        UPDATE users set password_forgot_token = ?, password_forgot_token_expiration_date = ?, updated_at = ? WHERE email = ?
+        `
+        await db.execute(sql, [passwordForgotToken, passwordForgotTokenExpirationDate, dateTime, email])
+    }
+
+    // if user has successfully provided new password 
+    static async resetPassword({hashPassword, email}) {
+        const dateTime = getCurrentDateTime()
+        const sql = `
+        UPDATE users set password = ?, password_forgot_token = ?, password_forgot_token_expiration_date = ?, updated_at = ? WHERE email = ?
+        `
+        await db.execute(sql, [hashPassword, null, null, dateTime, email])
+    }
 }
 
 module.exports = User
