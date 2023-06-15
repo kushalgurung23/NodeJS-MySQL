@@ -26,6 +26,12 @@ class User {
         )
     }
 
+    static async findUserById({userId}) {
+        const sql = `SELECT * FROM users WHERE id = ?`
+        const [user, _] = await db.execute(sql, [userId])
+        return user[0]
+    }
+
     static async findUserByEmail({email}) {
         const sql = `SELECT * FROM users WHERE email = ?`
         const [user, _] = await db.execute(sql, [email])
@@ -59,7 +65,7 @@ class User {
         await db.execute(sql, [passwordForgotToken, passwordForgotTokenExpirationDate, dateTime, email])
     }
 
-    // if user has successfully provided new password 
+    // if user has successfully provided new password
     static async resetPassword({hashPassword, email}) {
         const dateTime = getCurrentDateTime()
         const sql = `

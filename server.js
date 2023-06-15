@@ -14,10 +14,12 @@ const notFoundMiddleWare = require('./middlewares/not-found')
 
 // MIDDLEWARE
 app.use(express.json()); // parse json bodies in the request object
+const {authenticateUser} = require('./middlewares/authentication')
 
 // ROUTES
-app.use('/api/v1/posts', postRouter)
 app.use('/api/v1/auth', authRouter)
+app.use('/api/v1/posts', authenticateUser, postRouter)
+
 
 // MIDDLEWARE
 app.use(notFoundMiddleWare);

@@ -27,7 +27,7 @@ class Post {
         return posts
     }
 
-     static async findById(id) {
+    static async findById(id) {
         const sql = `SELECT * FROM posts WHERE id = ?`
         const [post, _] = await db.execute(sql, [id])
         return post[0]

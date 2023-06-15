@@ -7,7 +7,7 @@ const getCurrentDateTime = () => {
     const minute = date.getMinutes()
     const seconds = date.getSeconds()
 
-    const createdAtDate = `${year}-${month}-${day} ${hour}-${minute}-${seconds}`
+    const createdAtDate = `${year}-${month < 10 ? `0${month}` : month}-${day < 10 ? `0${day}` : day} ${hour < 10 ? `0${hour}` : hour}:${minute < 10 ? `0${minute}` : minute}:${seconds < 10 ? `0${seconds}` : seconds}`
     return createdAtDate
 }
 

@@ -12,11 +12,11 @@ const getAllPosts = async (req, res) => {
 const createNewPost = async (req, res) => {
     const {title, body} = req.body
     if(!title || !body) {
-        throw new CustomError.BadRequestError('Please provide both title and body')
+        throw new CustomError.BadRequestError('Please provide both title and body.')
     }
     const post = new Post({title, body})
     await post.save();
-    res.status(StatusCodes.CREATED).json({status: "Success",  msg: "Post is created successfully"})
+    res.status(StatusCodes.CREATED).json({status: "Success",  msg: "Post is created successfully."})
 }
 
 const getPostById = async (req, res) => {
@@ -32,7 +32,7 @@ const updatePost = async (req, res) => {
     const {id:postId} = req.params
   
     if(Object.keys(req.body).length === 0) {
-        throw new CustomError.BadRequestError('Post details cannot be empty')
+        throw new CustomError.BadRequestError('Post details cannot be empty.')
     }
     const post = await Post.findById(postId)
     if(!post) {

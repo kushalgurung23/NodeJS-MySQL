@@ -2,17 +2,16 @@ const { StatusCodes } = require('http-status-codes');
 const CustomError = require('../errors');
 const User = require('../models/User')
 const Token = require('../models/Token')
-const crypto = require('crypto')
 const {
     createHash, 
-    sendVerificationEmail, 
     generateHashPassword, 
     compareHashPassword, 
-    createTokenUser, 
+    createTokenUser,
     createJWT, 
     TokenType, 
-    sendResetPasswordEmail
-} = require('../utils')
+    sendCustomMessageEmail,
+    getCurrentDateTime,
+} = require('../utils');
 
 const registerUser = async (req, res) => {
 
@@ -32,11 +31,16 @@ const registerUser = async (req, res) => {
     const hashPassword = await generateHashPassword({password})
     const user = new User({name, email, password: hashPassword, role: "user", verificationToken: hashToken})
     await user.save()
+    const message = 
+    `<p>We are very pleased to welcome you to our application. Please verify your email by entering the following 6-digit code in our application:</p>
+    <h2>${verificationToken}</h2>
+    `
     // While sending token in email, we do not send the hashed token
-    await sendVerificationEmail({
-        name,
-        email,
-        verificationToken
+    await sendCustomMessageEmail({
+        name: user.name,
+        email: user.email,
+        message,
+        subject: 'Email Verification'
     })
     res.status(StatusCodes.CREATED).json({status: 'Success', msg: 'User is created successfully.'})
 }
@@ -50,22 +54,28 @@ const verifyEmail = async (req, res) => {
         throw new CustomError.BadRequestError('Email is required.')
     }
     if(verificationToken.length !== 6) {
-        throw new CustomError.BadRequestError('Invalid verification token')
+        throw new CustomError.BadRequestError('Invalid verification token.')
     }
     const user = await User.findUserByEmail({email})
     if(!user) {
-        throw new CustomError.UnauthenticatedError('Verification failed')
+        throw new CustomError.UnauthenticatedError('Verification failed.')
     }
     if(user.is_verified === 1 && user.verified_on !== null) {
-        throw new CustomError.UnauthenticatedError(`User was already verified on ${user.verified_on}`)
+        throw new CustomError.UnauthenticatedError(`User was already verified on ${user.verified_on}.`)
     }
     // user.verification_token is already hashed
     // Therefore, verificationToken input from user is also hashed to check whether they match or not
     if(user.verification_token !== createHash(verificationToken)) {
-        throw new CustomError.UnauthenticatedError('Verification failed')
+        throw new CustomError.UnauthenticatedError('Verification failed.')
     }
     await User.confirmEmailVerification({email})
-    res.status(StatusCodes.OK).json({status: 'Success', msg: 'Email is verified successfully'})
+    await sendCustomMessageEmail({
+         name: user.name,
+        email: user.email,
+        message: `<p>Congratulations!! Your account has been verified successfully.</p>`,
+        subject: 'Welcome to Kushal App'
+    })
+    res.status(StatusCodes.OK).json({status: 'Success', msg: 'Email is verified successfully.'})
 }
 
 const resendVerificationToken = async (req, res) => {
@@ -78,135 +88,173 @@ const resendVerificationToken = async (req, res) => {
         throw new CustomError.UnauthenticatedError('User does not exist.')
     }
     if(user.is_verified === 1 && user.verified_on !== null) {
-        throw new CustomError.UnauthenticatedError(`User was already verified on ${user.verified_on}`)
+        throw new CustomError.UnauthenticatedError(`User was already verified on ${user.verified_on}.`)
     }
     // random six digits number
     const verificationToken = Math.floor(100000 + Math.random() * 900000);
     // while saving verificationToken in db, we will hash it
     const hashToken = createHash(verificationToken)
     await User.updateVerificationToken({email, newToken: hashToken})
+    
+    const message = 
+    `<p>Please confirm your email by entering the following 6-digit code in our application:</p>
+    <h2>${verificationToken}</h2>
+    `
     // While sending token in email, we do not send the hashed token
-    await sendVerificationEmail({
+    await sendCustomMessageEmail({
         name: user.name,
         email: user.email,
-        verificationToken
+        message,
+        subject: 'Email Verification'
     })
-    res.status(StatusCodes.CREATED).json({status: 'Success', msg: 'New verification token is sent successfully.'})
+    res.status(StatusCodes.OK).json({status: 'Success', msg: 'New verification token is sent successfully.'})
 }
 
 const login = async (req, res) => {
     const {email, password} = req.body
     if (!email || !password) {
-        throw new CustomError.BadRequestError('Please provide email and password');
+        throw new CustomError.BadRequestError('Please provide email and password.');
     }
     const user = await User.findUserByEmail({email})
     if(!user) {
-        throw new CustomError.UnauthenticatedError('User does not exist.')
+        throw new CustomError.UnauthenticatedError('Invalid Credentials.')
     }
     const isPasswordCorrect = await compareHashPassword({userInputPassword: password, realPassword: user.password})
     if(!isPasswordCorrect) {
         throw new CustomError.UnauthenticatedError('Invalid Credentials.')
     }
     if(!user.is_verified) {
-        throw new CustomError.UnauthenticatedError('Please verify your email.')
+        throw new CustomError.UnauthenticatedError('User is not verified yet. Please verify your email.')
     }
-    const tokenUser = createTokenUser({name: user.name, userId: user.id, role: user.role})
-    
-    // USER REFRESH TOKEN iS STORED IN DATABASE
-    // IT WILL BE USED TO GET NEW ACCESS TOKEN
-    let userRefreshToken = '';
 
-    // CHECK FOR EXISTING TOKEN
-    const existingToken = await Token.findById({id: user.id})
-   
-    // If already created before (it means user has already logged in before)
-    if(existingToken) {
-        const {is_valid} = existingToken
-        // USER will be unable to login when token is invalid, it can be done by admin
-        if(!is_valid) {
-            throw new CustomError.UnauthenticatedError('Invalid Credentials');
-        }
-        userRefreshToken = existingToken.refresh_token
-        // GENERATE ACCESS JWT AND REFRESH JWT
-        const accessJWT = createJWT({payload: tokenUser, tokenType: TokenType.ACCESSTOKEN})
-        const refreshJWT = createJWT({payload: {tokenUser, userRefreshToken}, tokenType: TokenType.REFRESHTOKEN})
-        res.status(StatusCodes.OK).json({user: tokenUser, accessToken: accessJWT, refreshToken: refreshJWT})
-        return;
-    }
-   
-    // if logging in for the first time
-    userRefreshToken = crypto.randomBytes(40).toString('hex')
-    const userToken = {refresh_token: userRefreshToken, user: user.id}
-    await Token.createToken(userToken)
+    // tokenUser object will be stored in jwt payload
+    const tokenUser = createTokenUser({name: user.name, userId: user.id, role: user.role})
     // GENERATE ACCESS JWT AND REFRESH JWT
-    const accessJWT = createJWT({payload: tokenUser, tokenType: TokenType.ACCESSTOKEN})
-    const refreshJWT = createJWT({payload: {tokenUser, userRefreshToken}, tokenType: TokenType.REFRESHTOKEN})
-    res.status(StatusCodes.OK).json({user: tokenUser, accessToken: accessJWT, refreshToken: refreshJWT})
+
+    const accessJWT = createJWT({payload: {user: tokenUser}, tokenType: TokenType.ACCESSTOKEN})
+    const refreshJWT = createJWT({payload: {user: tokenUser}, tokenType: TokenType.REFRESHTOKEN})
+
+    // Access token and refresh token will be encrypted before storing in db
+    const access_token = createHash(accessJWT)
+    const refresh_token = createHash(refreshJWT)
+    await Token.createToken({access_token, refresh_token, user: user.id})
+
+    // TOKENS OF USER THAT WERE CREATED 90 days before will be deleted from db
+    await Token.deleteAllExpiredTokens({userId: user.id}) 
+
+    res.status(StatusCodes.OK).json({status: "Success", user: tokenUser, accessToken: accessJWT, refreshToken: refreshJWT})
 }
 
 const logout = async (req, res) => {
-    console.log(req.user);
-    await Token.deleteUserRefreshToken({userId: req.user.usedId})
-    res.status(StatusCodes.OK).json({ msg: 'user logged out!' });
+    // MIDDLEWARE WILL HANDLE THE LOGOUT LOGIC
+    res.status(StatusCodes.OK).json({status: "Success", msg: 'user logged out!' });
 };
 
 const forgotPassword = async (req, res) => {
     const {email} = req.body
     if(!email) {
-      throw new CustomError.BadRequestError('Please provide valid email')
+      throw new CustomError.BadRequestError('Please provide valid email.')
     }
 
     const user = await User.findUserByEmail({email})
     if(user) {
-    // random six digits number
-    const verificationToken = Math.floor(100000 + Math.random() * 900000);
-    // while sending email, we do not hash the verification token
-      await sendResetPasswordEmail({
-        name: user.name,
-        email: user.email,
-        verificationToken,
-      })
-
-        //   user will have to provide the token within ten minutes to be able to enter their new password
-      const tenMinutes = 1000 * 60 * 10
-      const passwordTokenExpirationDate = new Date(Date.now() + tenMinutes)
-  
-      // hashing the forgot password verifiacation token before saving in db
-      await User.updateForgotPasswordToken({
-        passwordForgotToken: createHash(verificationToken),
-        passwordForgotTokenExpirationDate: passwordTokenExpirationDate,
-        email
-      })
+        // random six digits number
+        const verificationToken = Math.floor(100000 + Math.random() * 900000);
+        // while sending email, we do not hash the verification token
+        const message = `<p>In order to reset your password, please enter the following 6-digit code in the application within 15 minutes:</p>
+        <h2>${verificationToken}</h2>
+        `
+        await sendCustomMessageEmail({
+            name: user.name,
+            email: user.email,
+            message,
+            subject: 'Reset Password'
+        })
+        // user will have to provide the token within ten minutes to be able to enter their new password
+        const fifteenMinutes = 1000 * 60 * 15
+        const passwordTokenExpirationDate = new Date(Date.now() + fifteenMinutes)
+        // hashing the forgot password verifiacation token before saving in db
+        await User.updateForgotPasswordToken({
+            passwordForgotToken: createHash(verificationToken),
+            passwordForgotTokenExpirationDate: passwordTokenExpirationDate,
+            email
+        })
     }
-    res.status(StatusCodes.OK).json({status: 'Success', msg: "Please check your email for reset password code"})
-  }
+    // Even if there is no user, we will show successful message to not let random user try different email
+    res.status(StatusCodes.OK).json({status: 'Success', msg: "Please check your email for reset password code."})
+}
+
+const checkPasswordForgotToken = async (req, res) => {
+    const {token, email} = req.body
+    if(!email || !token) {
+      throw new CustomError.BadRequestError('Please provide both 6 digit code and email.')
+    }
+    const user = await User.findUserByEmail({email})
+    if(!user) {
+        throw new CustomError.UnauthenticatedError('6 digit code does not match.')
+    }
+    
+     // user.password_forgot_token is hashed already, so token received from user input is also hashed in order to check if both are equal
+    if(user.password_forgot_token !== createHash(token)) {
+        throw new CustomError.UnauthenticatedError('6 digit code does not match.')
+    }
+
+    const currentDate = getCurrentDateTime()
+
+    if(user.password_forgot_token_expiration_date < currentDate) {
+        throw new CustomError.UnauthenticatedError('Password reset time period is over. Please start all over again.')
+    }
+    // Even if there is no user, we will show successful message to not let random user try different email
+    res.status(StatusCodes.OK).json({status: "Success", msg: "6 digit code matches successfully."})
+}
 
   // IT WILL BE CALLED FROM FRONT-END, WHEN USER PROVIDES NEW PASSWORD
 const resetPassword = async (req, res) => {
     // password is provided by user
     // token and email is received from query parameter when clicked on link from email
-    const {password, token, email} = req.body
-    if(!email || !password || !token) {
-      throw new CustomError.BadRequestError('Please provide all values')
+    const {password, email} = req.body
+    if(!email || !password) {
+      throw new CustomError.BadRequestError('Please provide both email and new password.')
     }
     const user = await User.findUserByEmail({email})
-    if(user) {
-      
-      // user.password_forgot_token is hashed already, so token received from user input is also hashed in order to check if both are equal
-      if(user.password_forgot_token !== createHash(token)) {
-        throw new CustomError.UnauthenticatedError('6 digit code does not match')
-      }
-
-      const currentDate = new Date()
-      if(user.password_forgot_token_expiration_date < currentDate) {
-        throw new CustomError.UnauthenticatedError('Password reset time period is over.')
-      }
-      const hashPassword = await generateHashPassword({password})
-      await User.resetPassword({email, hashPassword})
+    if(!user) {
+        throw new CustomError.UnauthenticatedError('Password reset time period is over. Please start all over again.')
     }
-    // Even if there is no user, we will show successful message to avoid users from entering random email 
-    res.status(StatusCodes.OK).json({msg: "Password is reset successfully"})
+    if(!user.password_forgot_token || !user.password_forgot_token_expiration_date) {
+        throw new CustomError.UnauthenticatedError('Password reset time period is over. Please start all over again.')
+    }
+    const currentDate = getCurrentDateTime()
+    
+    // checking token exipiration date again. Incase user is already in enter new password screen and turned off mobile for more
+    // than the exipred date. In this case, we will throw the exception
+    if(user.password_forgot_token_expiration_date < currentDate) {
+      throw new CustomError.UnauthenticatedError('Password reset time period is over. Please start all over again.')
+    }
+    const hashPassword = await generateHashPassword({password})
+    await User.resetPassword({email, hashPassword})
+    await sendCustomMessageEmail({
+        name: user.name, 
+        email: user.email, 
+        subject: 'Reset Password', 
+        message: `<p>Your password is reset successfully.</p>`})
+    res.status(StatusCodes.OK).json({status: "Success", msg: "Password is reset successfully."})
   }
+
+const generateNewAccessToken = async (req, res) => {
+    // IF REFRESH TOKEN IS VALID, WE WILL GET USERID FROM refreshTokenVerification MIDDLEWARE
+    const userId = req.user.userId
+    
+    const user = await User.findUserById({userId})
+    if(!user) {
+        throw new CustomError.UnauthenticatedError('Authentication invalid.')
+    }
+    const tokenUser = createTokenUser({name: user.name, userId: user.id, role: user.role})
+    // GENERATE NEW ACCESS JWT 
+    const accessJWT = createJWT({payload: {user: tokenUser}, tokenType: TokenType.ACCESSTOKEN})
+    const access_token = createHash(accessJWT)
+    await Token.updateNewAccessToken({access_token, userId})
+    res.status(StatusCodes.OK).json({status: "Success", accessToken: accessJWT})
+}
 
 module.exports = {
     registerUser,
@@ -215,5 +263,7 @@ module.exports = {
     login,
     logout,
     forgotPassword,
-    resetPassword
+    checkPasswordForgotToken,
+    resetPassword,
+    generateNewAccessToken
 }
