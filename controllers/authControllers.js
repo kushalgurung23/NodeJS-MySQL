@@ -147,7 +147,7 @@ const login = async (req, res) => {
 
 const logout = async (req, res) => {
     // MIDDLEWARE WILL HANDLE THE LOGOUT LOGIC
-    res.status(StatusCodes.OK).json({status: "Success", msg: 'user logged out!' });
+    res.status(StatusCodes.OK).json({status: "Success", msg: 'user is logged out successfully.' });
 };
 
 const forgotPassword = async (req, res) => {
@@ -204,11 +204,12 @@ const checkPasswordForgotToken = async (req, res) => {
     if(user.password_forgot_token_expiration_date < currentDate) {
         throw new CustomError.UnauthenticatedError('Password reset time period is over. Please start all over again.')
     }
-    // Even if there is no user, we will show successful message to not let random user try different email
+
+    await User.verifyForgotPasswordToken({email})
+
     res.status(StatusCodes.OK).json({status: "Success", msg: "6 digit code matches successfully."})
 }
 
-  // IT WILL BE CALLED FROM FRONT-END, WHEN USER PROVIDES NEW PASSWORD
 const resetPassword = async (req, res) => {
     // password is provided by user
     // token and email is received from query parameter when clicked on link from email
@@ -218,9 +219,12 @@ const resetPassword = async (req, res) => {
     }
     const user = await User.findUserByEmail({email})
     if(!user) {
-        throw new CustomError.UnauthenticatedError('Password reset time period is over. Please start all over again.')
+        throw new CustomError.UnauthenticatedError('Authentication Invalid.')
     }
-    if(!user.password_forgot_token || !user.password_forgot_token_expiration_date) {
+    if(!user.is_password_forgot_token_verified) {   
+        throw new CustomError.UnauthenticatedError('Error, please make sure that you provided the correct password forgot token.')
+    }
+    if(!user.password_forgot_token || !user.password_forgot_token_expiration_date) {   
         throw new CustomError.UnauthenticatedError('Password reset time period is over. Please start all over again.')
     }
     const currentDate = getCurrentDateTime()

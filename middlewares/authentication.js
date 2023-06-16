@@ -65,7 +65,6 @@ const refreshTokenVerification = async (req, res, next) => {
         next()
     } 
     catch (error) {
-        console.log("Error");
         throw new CustomError.UnauthenticatedError("Authentication invalid.")
     }
 }
@@ -79,7 +78,6 @@ const logoutRefreshTokenVerification = async (req, res, next) => {
     const refreshToken = authHeader.split(' ')[1]
     const payload = isTokenValid(refreshToken)
     if(payload) {
-        console.log(payload);
         const {userId} = payload.user
         // TOKENS OF USER THAT WERE CREATED 90 days before will be deleted from db
         await Token.deleteAllExpiredTokens({userId}) 

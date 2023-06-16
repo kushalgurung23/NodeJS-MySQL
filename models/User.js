@@ -60,18 +60,27 @@ class User {
     static async updateForgotPasswordToken({passwordForgotToken, passwordForgotTokenExpirationDate, email}) {
         const dateTime = getCurrentDateTime()
         const sql = `
-        UPDATE users set password_forgot_token = ?, password_forgot_token_expiration_date = ?, updated_at = ? WHERE email = ?
+        UPDATE users set password_forgot_token = ?, password_forgot_token_expiration_date = ?, is_password_forgot_token_verified = ?, updated_at = ? WHERE email = ?
         `
-        await db.execute(sql, [passwordForgotToken, passwordForgotTokenExpirationDate, dateTime, email])
+        await db.execute(sql, [passwordForgotToken, passwordForgotTokenExpirationDate, false, dateTime, email])
+    }
+
+    // WHEN USER PROVIDES CORRECT 6 DIGIT PASSWORD FORGOT CODE
+    static async verifyForgotPasswordToken({email}) {
+        const dateTime = getCurrentDateTime()
+        const sql = `
+        UPDATE users set is_password_forgot_token_verified = ?, updated_at = ? WHERE email = ?
+        `
+        await db.execute(sql, [true, dateTime, email])
     }
 
     // if user has successfully provided new password
     static async resetPassword({hashPassword, email}) {
         const dateTime = getCurrentDateTime()
         const sql = `
-        UPDATE users set password = ?, password_forgot_token = ?, password_forgot_token_expiration_date = ?, updated_at = ? WHERE email = ?
+        UPDATE users set password = ?, password_forgot_token = ?, password_forgot_token_expiration_date = ?, is_password_forgot_token_verified = ?, updated_at = ? WHERE email = ?
         `
-        await db.execute(sql, [hashPassword, null, null, dateTime, email])
+        await db.execute(sql, [hashPassword, null, null, null, dateTime, email])
     }
 }
 
