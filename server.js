@@ -3,23 +3,28 @@ require('express-async-errors')
 
 const express = require("express");
 const app = express();
+const fileUpload = require('express-fileupload')
 
 // REQUIRE ROUTES
 const postRouter = require('./routes/postRoutes')
 const authRouter = require('./routes/authRoutes')
+const userRouter = require('./routes/userRoutes')
 
 // REQUIRE MIDDLEWARES
 const errorHandlerMiddleware = require('./middlewares/error-handler')
 const notFoundMiddleWare = require('./middlewares/not-found')
 
 // MIDDLEWARE
+app.use(express.static('./public')) // make this static file publicly available
 app.use(express.json()); // parse json bodies in the request object
+app.use(fileUpload()) // upload files such as image, pdf
+
 const {authenticateUser} = require('./middlewares/authentication')
 
 // ROUTES
 app.use('/api/v1/auth', authRouter)
 app.use('/api/v1/posts', authenticateUser, postRouter)
-
+app.use('/api/v1/users', authenticateUser, userRouter)
 
 // MIDDLEWARE
 app.use(notFoundMiddleWare);

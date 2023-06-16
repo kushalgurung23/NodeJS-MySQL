@@ -3,10 +3,16 @@ const CustomError = require('../errors/index')
 const {StatusCodes} = require('http-status-codes')
 
 const getAllPosts = async (req, res) => {
-    const posts = await Post.findAll()
+    const {search, order_by} = req.query
+    console.log(search);
+    const page = Number(req.query.page) || 1
+    const limit = Number(req.query.limit) || 10
+    const offset = (page -1) * limit
+
+    const {totalPostsCount, posts} = await Post.findAll({offset, limit, search, order_by})
     res.status(StatusCodes.OK).json({
         status: "Success",
-        count: posts.length, posts})
+        count: totalPostsCount, posts})
 }
 
 const createNewPost = async (req, res) => {
