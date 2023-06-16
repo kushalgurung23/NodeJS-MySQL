@@ -1,12 +1,12 @@
 const User = require('../models/User')
 const CustomError = require('../errors/index')
 const {StatusCodes} = require('http-status-codes')
-const {uploadProductImage} = require('../utils')
+const {uploadImage} = require('../utils')
 
 const editProfilePicture = async (req, res) => {
     const {userId} = req.user
     console.log(userId);
-    const imagePath = await uploadProductImage(req, res)
+    const imagePath = await uploadImage(req, res)
     if(!imagePath) {
         throw new CustomError.BadRequestError('Unable to update profile picture.')
     }

@@ -85,7 +85,7 @@ class User {
     }
 
     static async getMyDetails({userId}) {
-        const sql = `SELECT id, name, email, role, is_verified, verified_on, created_at, updated_at, is_active FROM users WHERE id = ? AND is_active = ?`
+        const sql = `SELECT id, name, email, role, profile_picture, is_verified, verified_on, created_at, updated_at, is_active FROM users WHERE id = ? AND is_active = ?`
         const [user, _] = await db.execute(sql, [userId, true])
         return user[0]
     }

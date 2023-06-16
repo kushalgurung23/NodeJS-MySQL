@@ -2,13 +2,13 @@ const path = require('path')
 const CustomError = require('../errors')
 const uuid = require('uuid')
 
-const uploadProductImage = async(req, res) => {
+const uploadImage = async(req, res) => {
     // check if file exists
     if(!req.files) {
         throw new CustomError.BadRequestError('No file uploaded')
     }
     // check format
-    const productImage = req.files.profile_picture;   
+    const productImage = req.files.image;   
     if(!productImage.mimetype.startsWith('image')) {
         throw new CustomError.BadRequestError('Please upload image');
     }
@@ -29,4 +29,4 @@ const uploadProductImage = async(req, res) => {
     return `/uploads/${uniqueImageName}`;
 }
 
-module.exports = uploadProductImage
+module.exports = uploadImage
