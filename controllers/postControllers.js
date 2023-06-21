@@ -1,7 +1,7 @@
 const Post = require('../models/Post')
 const CustomError = require('../errors/index')
 const {StatusCodes} = require('http-status-codes')
-const {uploadSingleImage, uploadMultipleImages} = require('../utils/')
+const {uploadSingleImage, uploadMultipleImages, ImageTypeEnum} = require('../utils/')
 const PostsImages = require('../models/PostsImages')
 
 const getAllPosts = async (req, res) => {
@@ -30,14 +30,14 @@ const createNewPost = async (req, res) => {
         const imageFiles = req.files.image
         // MULTIPLE IMAGES
         if(imageFiles.length && imageFiles.length > 1) {
-            const allImagesPath = await uploadMultipleImages(req, res)
+            const allImagesPath = await uploadMultipleImages(req, res, newPostId, ImageTypeEnum.postImage)
             if(allImagesPath) {
                 await PostsImages.addMultiplePostImages({postId: newPostId, allImagesPath})
             }
         }
         // SINGLE IMAGE
         else if(!imageFiles.length) {
-            const imagePath = await uploadSingleImage(req, res)
+            const imagePath = await uploadSingleImage(req, res, newPostId, ImageTypeEnum.postImage)
             if(imagePath) {
                 await PostsImages.addSinglePostImage({postId: newPostId, imagePath})
             }

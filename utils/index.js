@@ -10,6 +10,7 @@ const {
     createJWT,
     TokenType
 } = require('./jwt')
+const ImageTypeEnum = require('./imageTypeEnum')
 
 module.exports = {
     createHash,
@@ -23,5 +24,6 @@ module.exports = {
     TokenType,
     sendCustomMessageEmail,
     uploadSingleImage, 
-    uploadMultipleImages
+    uploadMultipleImages,
+    ImageTypeEnum
 }

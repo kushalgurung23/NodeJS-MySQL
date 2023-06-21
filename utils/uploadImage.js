@@ -2,7 +2,7 @@ const path = require('path')
 const CustomError = require('../errors')
 const uuid = require('uuid')
 
-const uploadSingleImage = async(req, res) => {
+const uploadSingleImage = async(req, res, id, imageType) => {
     // check if file exists
     if(!req.files) {
         throw new CustomError.BadRequestError('No file uploaded')
@@ -27,7 +27,8 @@ const uploadSingleImage = async(req, res) => {
     const uniquePhotoId = uuid.v4();
 
     // IMAGE EXTENSION IS ADDED AT THE END. [.pop() will return the last item of array after splitted through delimiter "/"].
-    const uniqueImageName = `${uniquePhotoId}.${productImage.mimetype.split("/").pop()}`;
+    // imageType and id will be used for naming convention, so that whenever user wants to access back their picture, it will be easier to search.
+    const uniqueImageName = `${imageType}-${id}-${uniquePhotoId}.${productImage.mimetype.split("/").pop()}`;
     const imagePath = path.join(__dirname, '../public/uploads/'+`${uniqueImageName}`);
     
     await productImage.mv(imagePath);
@@ -35,7 +36,7 @@ const uploadSingleImage = async(req, res) => {
     return `/uploads/${uniqueImageName}`;
 }
 
-const uploadMultipleImages = async(req, res) => {
+const uploadMultipleImages = async(req, res, id, imageType) => {
     // check if file exists
     if(!req.files) {
         throw new CustomError.BadRequestError('No file uploaded')
@@ -65,7 +66,8 @@ const uploadMultipleImages = async(req, res) => {
             // GENERATING UNIQUE ID FOR IMAGE
             const uniquePhotoId = uuid.v4();
             // IMAGE EXTENSION IS ADDED AT THE END. [.pop() will return the last item of array after splitted through delimiter "/"].
-            const uniqueImageName = `${uniquePhotoId}.${productImages[i].mimetype.split("/").pop()}`;
+            // imageType and id will be used for naming convention, so that whenever user wants to access back their picture, it will be easier to search.
+            const uniqueImageName = `${imageType}-${id}-${uniquePhotoId}.${productImages[i].mimetype.split("/").pop()}`;
             const imagePath = path.join(__dirname, '../public/uploads/'+`${uniqueImageName}`);
 
             // This array will store the images which are to be uploaded in the server.
