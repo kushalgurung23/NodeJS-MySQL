@@ -4,7 +4,7 @@ const sendEmail = require('./sendEmail')
 const {generateHashPassword, compareHashPassword} = require('./hashPassword')
 const createTokenUser = require('./createTokenUser')
 const sendCustomMessageEmail = require('./sendCustomMessageEmail')
-const uploadImage = require('./uploadImage')
+const {uploadSingleImage, uploadMultipleImages} = require('./uploadImage')
 const {
     isTokenValid,
     createJWT,
@@ -22,5 +22,6 @@ module.exports = {
     createJWT,
     TokenType,
     sendCustomMessageEmail,
-    uploadImage
+    uploadSingleImage, 
+    uploadMultipleImages
 }

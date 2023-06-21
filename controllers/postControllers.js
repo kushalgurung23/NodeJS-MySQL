@@ -1,6 +1,8 @@
 const Post = require('../models/Post')
 const CustomError = require('../errors/index')
 const {StatusCodes} = require('http-status-codes')
+const {uploadSingleImage, uploadMultipleImages} = require('../utils/')
+const PostsImages = require('../models/PostsImages')
 
 const getAllPosts = async (req, res) => {
     const {search, order_by} = req.query
@@ -16,12 +18,32 @@ const getAllPosts = async (req, res) => {
 }
 
 const createNewPost = async (req, res) => {
+
     const {title, body} = req.body
     if(!title || !body) {
         throw new CustomError.BadRequestError('Please provide both title and body.')
     }
     const post = new Post({title, body})
-    await post.save();
+    const newPostId = await post.save();
+    // IF POST ALSO HAS IMAGES
+    if(req.files) {
+        const imageFiles = req.files.image
+        // MULTIPLE IMAGES
+        if(imageFiles.length && imageFiles.length > 1) {
+            const allImagesPath = await uploadMultipleImages(req, res)
+            if(allImagesPath) {
+                await PostsImages.addMultiplePostImages({postId: newPostId, allImagesPath})
+            }
+        }
+        // SINGLE IMAGE
+        else if(!imageFiles.length) {
+            const imagePath = await uploadSingleImage(req, res)
+            if(imagePath) {
+                await PostsImages.addSinglePostImage({postId: newPostId, imagePath})
+            }
+        }
+    }
+
     res.status(StatusCodes.CREATED).json({status: "Success",  msg: "Post is created successfully."})
 }
 

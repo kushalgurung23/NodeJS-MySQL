@@ -18,8 +18,8 @@ class Post {
             is_active
         )
         VALUES (?, ?, ?, ?, ?)`
-        await db.execute(sql, [this.title, this.body, dateTime, dateTime, true]
-        )
+        const [result] = await db.execute(sql, [this.title, this.body, dateTime, dateTime, true])
+        return(result.insertId);
     }
 
     static async findAll({offset, limit, search, order_by}) {
