@@ -34,32 +34,35 @@ class Post {
         const [count, countField] = await db.execute(countSql, countValues)
         const totalPostsCount = count[0].total_posts
 
+        // SELECT p.id, p.title, GROUP_CONCAT(pi.image SEPARATOR ',') AS images 
+        // FROM POSTS p LEFT JOIN posts_images pi ON p.id = pi.post_id WHERE p.is_active = 1 
+        // GROUP BY p.id ORDER BY p.created_at DESC 
+
         // POSTS
-        let postsSql = "SELECT * from posts WHERE is_active = ?"
-        let postsValues = [true]
+        let postsSql = "SELECT p.id, p.title, GROUP_CONCAT(pi.image SEPARATOR ',') AS images FROM posts p LEFT JOIN posts_images pi ON p.id = pi.post_id WHERE p.is_active = ? AND pi.is_active = ?"
+
+        let postsValues = [true, true]
         if(search) {
-            postsSql+= ` AND title LIKE ?`
+            postsSql+= ` AND p.title LIKE ?`
             postsValues.push(`%${search}%`)
         }
+        postsSql+= " GROUP BY p.id"
         // IF order_by query string is not selected, api will be sent in desc order
         if(!order_by) {
-            postsSql+= " ORDER BY created_at DESC"
+            postsSql+= " ORDER BY p.created_at DESC"
         }
         if(order_by) {
             // order_by will accept two values: created_at_asc or created_at_desc
             if(order_by === 'created_at_asc') {
-                postsSql+= " ORDER BY created_at ASC"
+                postsSql+= " ORDER BY p.created_at ASC"
             }
             // IF ANYTHING ELSE EXCEPT created_at_asc is provided, the result will be sent in descending order.
             else {
-                postsSql+= " ORDER BY created_at DESC"
+                postsSql+= " ORDER BY p.created_at DESC"
             }
         }
         postsSql+= " LIMIT ? OFFSET ?"
         postsValues.push(limit.toString(), offset.toString())
-
-        console.log(postsSql);
-        console.log(postsValues);
         
         const [posts, _] = await db.execute(postsSql, postsValues)
         return {totalPostsCount, posts}
