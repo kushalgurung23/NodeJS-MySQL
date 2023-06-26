@@ -6,7 +6,7 @@ const PostsImages = require('../models/PostsImages')
 
 const getAllPosts = async (req, res) => {
     const {search, order_by} = req.query
-    console.log(search);
+    
     const page = Number(req.query.page) || 1
     const limit = Number(req.query.limit) || 10
     const offset = (page -1) * limit
@@ -14,7 +14,8 @@ const getAllPosts = async (req, res) => {
     const {totalPostsCount, posts} = await Post.findAll({offset, limit, search, order_by})
     res.status(StatusCodes.OK).json({
         status: "Success",
-        count: totalPostsCount, posts})
+        count: totalPostsCount, 
+        posts})
 }
 
 const createNewPost = async (req, res) => {
@@ -49,7 +50,7 @@ const createNewPost = async (req, res) => {
 
 const getPostById = async (req, res) => {
     const {id:postId} = req.params
-    const post = await Post.findById(postId)
+    const post = await Post.getOnePost(postId)
     if(!post) {
       throw new CustomError.NotFoundError(`Post of id: ${postId} is not available.`)
     }
@@ -71,14 +72,31 @@ const updatePost = async (req, res) => {
 }
 
 const deletePost = async (req, res) => {
+    if(!req.params.id) {
+        throw new CustomError.BadRequestError('Provide post id.')
+    }
     const {id:postId} = req.params
     const post = await Post.findById(postId)
-    if(!post) {
+    
+    if(!post || post?.is_active === 0) {
         throw new CustomError.NotFoundError(`Post of id: ${postId} does not exists.`)
     }
     await Post.deletePost({postId})
     res.status(200).json({status: 'Success', msg: "Post is deleted successfully."})
+}
 
+const deletePostImage = async (req, res) => {
+    if(!req.params.id) {
+        throw new CustomError.BadRequestError('Provide post\'s image id.')
+    }
+
+    const {id:imageId} = req.params
+    const postImage = await PostsImages.findPostImageById({imageId})
+    if(!postImage) {
+        throw new CustomError.NotFoundError(`Post image of id: ${imageId} does not exists.`)
+    }
+    await PostsImages.deletePostImage({imageId})
+    res.status(200).json({status: 'Success', msg: "Post image is deleted successfully."})
 }
 
 module.exports = {
@@ -86,5 +104,6 @@ module.exports = {
     createNewPost,
     getPostById,
     updatePost,
-    deletePost
+    deletePost,
+    deletePostImage
 }

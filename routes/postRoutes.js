@@ -5,10 +5,12 @@ const {
     createNewPost,
     getPostById,
     updatePost,
-    deletePost
+    deletePost,
+    deletePostImage
 } = require('../controllers/postControllers')
 
 router.route('/').get(getAllPosts).post(createNewPost)
 router.route("/:id").get(getPostById).patch(updatePost).delete(deletePost)
+router.route("/image/:id").delete(deletePostImage)
 
 module.exports = router

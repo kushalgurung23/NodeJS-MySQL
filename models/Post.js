@@ -22,6 +22,65 @@ class Post {
         return(result.insertId);
     }
 
+    // static async findAll({offset, limit, search, order_by}) {
+    //     // TOTAL COUNT
+    //     let countSql = "SELECT COUNT(*) AS total_posts FROM posts WHERE is_active = ?"
+    //     let countValues = [true]
+    //     if(search) {
+    //         countSql+= ` AND title LIKE ?`
+    //         countValues.push(`%${search}%`)
+    //     }
+       
+    //     const [count, countField] = await db.execute(countSql, countValues)
+    //     const totalPostsCount = count[0].total_posts
+
+    //     // POSTS
+    //     let postsSql = `SELECT p.id, p.title, p.body, p.created_at, p.updated_at, 
+    //     GROUP_CONCAT(pi.image SEPARATOR ';') AS images 
+    //     FROM posts p LEFT JOIN (SELECT post_id, image FROM posts_images 
+    //     WHERE is_active = ?) pi on p.id = pi.post_id WHERE p.is_active = ?`
+       
+    //     let postsValues = [true, true]
+    //     if(search) {
+    //         postsSql+= ` AND p.title LIKE ?`
+    //         postsValues.push(`%${search}%`)
+    //     }
+    //     postsSql+= " GROUP BY p.id"
+    //     // IF order_by query string is not selected, api will be sent in desc order
+    //     if(!order_by) {
+    //         postsSql+= " ORDER BY p.created_at DESC"
+    //     }
+    //     if(order_by) {
+    //         // order_by will accept two values: created_at_asc or created_at_desc
+    //         if(order_by === 'created_at_asc') {
+    //             postsSql+= " ORDER BY p.created_at ASC"
+    //         }
+    //         // IF ANYTHING ELSE EXCEPT created_at_asc is provided, the result will be sent in descending order.
+    //         else {
+    //             postsSql+= " ORDER BY p.created_at DESC"
+    //         }
+    //     }
+    //     postsSql+= " LIMIT ? OFFSET ?"
+    //     postsValues.push(limit.toString(), offset.toString())
+        
+    //     const [posts, _] = await db.execute(postsSql, postsValues)
+
+    //     // RETURNING IMAGES AS ARRAY
+    //     const postData = posts.map(row => ({
+    //           id: row.id,
+    //           title: row.title,
+    //           body: row.body,
+    //           images: row.images ? row.images.split(';') : [],
+    //           created_at: row.created_at,
+    //           updated_at: row.updated_at
+    //         }
+    //       ));
+
+    //     return {totalPostsCount, postData}
+    // }
+
+    // THIS METHOD IS TO CHECK WHETHER POST OF THIS ID EXISTS OR NOT
+    
     static async findAll({offset, limit, search, order_by}) {
         // TOTAL COUNT
         let countSql = "SELECT COUNT(*) AS total_posts FROM posts WHERE is_active = ?"
@@ -34,13 +93,13 @@ class Post {
         const [count, countField] = await db.execute(countSql, countValues)
         const totalPostsCount = count[0].total_posts
 
-        // SELECT p.id, p.title, GROUP_CONCAT(pi.image SEPARATOR ',') AS images 
-        // FROM POSTS p LEFT JOIN posts_images pi ON p.id = pi.post_id WHERE p.is_active = 1 
-        // GROUP BY p.id ORDER BY p.created_at DESC 
-
         // POSTS
-        let postsSql = "SELECT p.id, p.title, GROUP_CONCAT(pi.image SEPARATOR ',') AS images FROM posts p LEFT JOIN posts_images pi ON p.id = pi.post_id WHERE p.is_active = ? AND pi.is_active = ?"
-
+        let postsSql = `SELECT p.id, p.title, p.body, p.created_at, p.updated_at,
+        GROUP_CONCAT(pi.id, ',', pi.image ORDER BY pi.id SEPARATOR ';') AS images
+        FROM posts p
+        LEFT JOIN posts_images pi ON p.id = pi.post_id AND pi.is_active = ?
+        WHERE p.is_active = ?`;
+       
         let postsValues = [true, true]
         if(search) {
             postsSql+= ` AND p.title LIKE ?`
@@ -64,22 +123,72 @@ class Post {
         postsSql+= " LIMIT ? OFFSET ?"
         postsValues.push(limit.toString(), offset.toString())
         
-        const [posts, _] = await db.execute(postsSql, postsValues)
-        return {totalPostsCount, posts}
-        
-        // COUNT SQL QUERY AND ITS VALUES WILL BE
-        // SELECT COUNT(*) AS total_posts FROM posts WHERE is_active = ? AND title LIKE ?
-        // [ true, '%chels%' ]
+        const [rows, _] = await db.execute(postsSql, postsValues)
 
-        // POSTS SQL QUERY AND ITS VALUES WILL BE
-        // SELECT * from posts WHERE is_active = ? AND title LIKE ? ORDER BY created_at DESC LIMIT ? OFFSET ?
-        // [ true, '%chels%', '10', '0' ]
+        const posts = [];
+
+        for (const row of rows) {
+          const post = {
+            id: row.id,
+            title: row.title,
+            body: row.body,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            images: [],
+          };
+      
+          const images = row.images ? row.images.split(';') : [];
+      
+          for (const image of images) {
+            const [imageId, imagePath] = image.split(',');
+            post.images.push({ id: parseInt(imageId), url: imagePath });
+          }
+      
+          posts.push(post);
+        }
+
+        return {totalPostsCount, posts}
     }
 
     static async findById(id) {
-        const sql = `SELECT * FROM posts WHERE id = ? AND is_active = ?`
-        const [post, _] = await db.execute(sql, [id, true])
+        const sql = `SELECT id FROM posts where is_active = ? AND id = ?`
+        const [post, _] = await db.execute(sql, [true, id])
         return post[0]
+    }
+
+    // WHEN WE WANT TO SEE DETAILS OF ONLY ONE POST
+    static async getOnePost(id) {
+        const sql = `SELECT p.id, p.title, p.body, p.created_at, p.updated_at,
+        GROUP_CONCAT(pi.id, ',', pi.image ORDER BY pi.id SEPARATOR ';') AS images
+        FROM posts p
+        LEFT JOIN posts_images pi ON p.id = pi.post_id AND pi.is_active = ?
+        WHERE p.id = ? AND p.is_active = ?
+        GROUP BY p.id`;
+
+        const [rows, _] = await db.execute(sql, [true, id, true])
+        console.log(rows);
+        if(rows.length === 0) {
+            return false;
+        }
+
+        const post = {
+            id: rows[0].id,
+            title: rows[0].title,
+            body: rows[0].body,
+            created_at: rows[0].created_at,
+            updated_at: rows[0].updated_at,
+            images: [],
+          };
+        
+        // images will have this pattern
+        // images: '36,/uploads/post-115-ec3ecac8-114e-47a7-aaff-f183c2376c9d.jpeg;37,/uploads/post-115-5579746d-2cc3-4470-9176-0e99666247a8.jpeg'
+        const images = rows[0].images ? rows[0].images.split(';') : [];
+        
+        for (const image of images) {
+            const [imageId, imagePath] = image.split(',');
+            post.images.push({ id: parseInt(imageId), url: imagePath });
+        }
+        return {post}
     }
 
     static async updateById({toBeUpdatedFields, postId}) {
@@ -110,11 +219,17 @@ class Post {
         // [ 'Good team of England.', '2023-06-16 07:23:01', '15', true ]
     }
 
+    // POST's status will be set to in_active
     static async deletePost({postId}) {
-        const sql = `DELETE FROM posts
-        WHERE id = ? AND is_active = ?
-        `
-        await db.execute(sql, [postId, true])
+        const dateTime = getCurrentDateTime()
+        const values = [false, dateTime, postId]
+        // REMOVE post
+        const postSql = `UPDATE posts SET is_active = ?, updated_at = ? WHERE id = ?`
+        await db.execute(postSql, values)
+        
+        // REMOVE post's images
+        const postImageSql = `UPDATE posts_images SET is_active = ?, updated_at = ? WHERE post_id = ?`
+        await db.execute(postImageSql, values)
     }
 }
 

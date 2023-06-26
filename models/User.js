@@ -120,8 +120,7 @@ class User {
         query += ' WHERE id = ?';
         query += ' AND is_active = ?';
         values.push(dateTime, userId, true)
-        console.log(query);
-        console.log(values);
+        
         await db.execute(query, values)
         // THE QUERY AND ITS VALUES WILL BE
         // UPDATE users SET name = ?, updated_at = ? WHERE id = ? AND is_active = ?

@@ -31,6 +31,20 @@ class PostsImages {
         "INSERT INTO posts_images (post_id, image, created_at, updated_at, is_active) VALUES ?"
         await db.execute(mysql.format(sql, [insertValues]))
     }
+
+    static async findPostImageById({imageId}) {
+        const sql = `SELECT * FROM posts_images WHERE id = ? AND is_active = ?`
+        const [user, _] = await db.execute(sql, [imageId, true])
+        return user[0]
+    }
+
+    static async deletePostImage({imageId}) {
+        const dateTime = getCurrentDateTime()
+        const sql = `UPDATE posts_images SET is_active = ?, updated_at = ? 
+        WHERE id = ?`
+        await db.execute(sql, [false, dateTime, imageId])
+    }
+
 }
 
 module.exports = PostsImages
