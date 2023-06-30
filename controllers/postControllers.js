@@ -5,16 +5,27 @@ const {uploadSingleImage, uploadMultipleImages, ImageTypeEnum} = require('../uti
 const PostsImages = require('../models/PostsImages')
 
 const getAllPosts = async (req, res) => {
+    const userId = req.user.userId
     const {search, order_by} = req.query
     
     const page = Number(req.query.page) || 1
     const limit = Number(req.query.limit) || 10
     const offset = (page -1) * limit
 
-    const {totalPostsCount, posts} = await Post.findAll({offset, limit, search, order_by})
+    const {totalPostsCount, posts} = await Post.findAll({offset, limit, search, order_by, userId})
+    if(!posts) {
+        return res.status(StatusCodes.OK).json({
+            status: "Success",
+            count: totalPostsCount, 
+            page,
+            limit,
+            posts: []})
+    }
     res.status(StatusCodes.OK).json({
         status: "Success",
         count: totalPostsCount, 
+        page,
+        limit,
         posts})
 }
 
@@ -50,7 +61,7 @@ const createNewPost = async (req, res) => {
 
 const getPostById = async (req, res) => {
     const {id:postId} = req.params
-    const post = await Post.getOnePost(postId)
+    const post = await Post.getOnePost({postId, userId: req.user.userId})
     if(!post) {
       throw new CustomError.NotFoundError(`Post of id: ${postId} is not available.`)
     }

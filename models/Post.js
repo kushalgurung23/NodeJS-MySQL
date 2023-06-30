@@ -22,66 +22,7 @@ class Post {
         return(result.insertId);
     }
 
-    // static async findAll({offset, limit, search, order_by}) {
-    //     // TOTAL COUNT
-    //     let countSql = "SELECT COUNT(*) AS total_posts FROM posts WHERE is_active = ?"
-    //     let countValues = [true]
-    //     if(search) {
-    //         countSql+= ` AND title LIKE ?`
-    //         countValues.push(`%${search}%`)
-    //     }
-       
-    //     const [count, countField] = await db.execute(countSql, countValues)
-    //     const totalPostsCount = count[0].total_posts
-
-    //     // POSTS
-    //     let postsSql = `SELECT p.id, p.title, p.body, p.created_at, p.updated_at, 
-    //     GROUP_CONCAT(pi.image SEPARATOR ';') AS images 
-    //     FROM posts p LEFT JOIN (SELECT post_id, image FROM posts_images 
-    //     WHERE is_active = ?) pi on p.id = pi.post_id WHERE p.is_active = ?`
-       
-    //     let postsValues = [true, true]
-    //     if(search) {
-    //         postsSql+= ` AND p.title LIKE ?`
-    //         postsValues.push(`%${search}%`)
-    //     }
-    //     postsSql+= " GROUP BY p.id"
-    //     // IF order_by query string is not selected, api will be sent in desc order
-    //     if(!order_by) {
-    //         postsSql+= " ORDER BY p.created_at DESC"
-    //     }
-    //     if(order_by) {
-    //         // order_by will accept two values: created_at_asc or created_at_desc
-    //         if(order_by === 'created_at_asc') {
-    //             postsSql+= " ORDER BY p.created_at ASC"
-    //         }
-    //         // IF ANYTHING ELSE EXCEPT created_at_asc is provided, the result will be sent in descending order.
-    //         else {
-    //             postsSql+= " ORDER BY p.created_at DESC"
-    //         }
-    //     }
-    //     postsSql+= " LIMIT ? OFFSET ?"
-    //     postsValues.push(limit.toString(), offset.toString())
-        
-    //     const [posts, _] = await db.execute(postsSql, postsValues)
-
-    //     // RETURNING IMAGES AS ARRAY
-    //     const postData = posts.map(row => ({
-    //           id: row.id,
-    //           title: row.title,
-    //           body: row.body,
-    //           images: row.images ? row.images.split(';') : [],
-    //           created_at: row.created_at,
-    //           updated_at: row.updated_at
-    //         }
-    //       ));
-
-    //     return {totalPostsCount, postData}
-    // }
-
-    // THIS METHOD IS TO CHECK WHETHER POST OF THIS ID EXISTS OR NOT
-    
-    static async findAll({offset, limit, search, order_by}) {
+    static async findAll({offset, limit, search, order_by, userId}) {
         // TOTAL COUNT
         let countSql = "SELECT COUNT(*) AS total_posts FROM posts WHERE is_active = ?"
         let countValues = [true]
@@ -92,15 +33,53 @@ class Post {
        
         const [count, countField] = await db.execute(countSql, countValues)
         const totalPostsCount = count[0].total_posts
-
-        // POSTS
-        let postsSql = `SELECT p.id, p.title, p.body, p.created_at, p.updated_at,
-        GROUP_CONCAT(pi.id, ',', pi.image ORDER BY pi.id SEPARATOR ';') AS images
+        
+        // COALESCE WILL RETURN EMPTY ARRAY WHEN SUB QUERY RETURNS 0 ROWS
+        let postsSql = `SELECT JSON_OBJECT(
+            'id', p.id,
+            'title', p.title,
+            'body', p.body,
+            'created_at', p.created_at,
+            'updated_at', p.updated_at,
+            'images', COALESCE(
+                (
+                    SELECT JSON_ARRAYAGG(
+                        JSON_OBJECT(
+                            'id', pi.id,
+                            'url', pi.image
+                        )
+                    )
+                    FROM posts_images pi
+                    WHERE pi.post_id = p.id AND pi.is_active = ?
+                ),
+                JSON_ARRAY()
+            ),
+            'likes_count', (
+                SELECT COUNT(*)
+                FROM post_likes pl
+                WHERE pl.post_id = p.id
+            ),
+            'is_liked', (
+                SELECT CASE WHEN EXISTS (
+                    SELECT 1
+                    FROM post_likes pl
+                    WHERE pl.post_id = p.id AND pl.liked_by = ?
+                ) THEN 1 ELSE 0 END
+            ),
+            'created_by', (
+                SELECT JSON_OBJECT(
+                    'id', u.id,
+                    'name', u.name,
+                    'profile_picture', u.profile_picture
+                )
+                FROM users u 
+                WHERE p.created_by = u.id
+            )
+        ) AS post
         FROM posts p
-        LEFT JOIN posts_images pi ON p.id = pi.post_id AND pi.is_active = ?
-        WHERE p.is_active = ?`;
+        WHERE p.is_active = ?`
        
-        let postsValues = [true, true]
+        let postsValues = [true, !userId ? 0 : userId, true]
         if(search) {
             postsSql+= ` AND p.title LIKE ?`
             postsValues.push(`%${search}%`)
@@ -123,30 +102,11 @@ class Post {
         postsSql+= " LIMIT ? OFFSET ?"
         postsValues.push(limit.toString(), offset.toString())
         
-        const [rows, _] = await db.execute(postsSql, postsValues)
-
-        const posts = [];
-
-        for (const row of rows) {
-          const post = {
-            id: row.id,
-            title: row.title,
-            body: row.body,
-            created_at: row.created_at,
-            updated_at: row.updated_at,
-            images: [],
-          };
-      
-          const images = row.images ? row.images.split(';') : [];
-      
-          for (const image of images) {
-            const [imageId, imagePath] = image.split(',');
-            post.images.push({ id: parseInt(imageId), url: imagePath });
-          }
-      
-          posts.push(post);
+        const [posts, _] = await db.execute(postsSql, postsValues)
+        
+        if(posts.length === 0) {
+            return {totalPostsCount, posts:false};
         }
-
         return {totalPostsCount, posts}
     }
 
@@ -157,38 +117,60 @@ class Post {
     }
 
     // WHEN WE WANT TO SEE DETAILS OF ONLY ONE POST
-    static async getOnePost(id) {
-        const sql = `SELECT p.id, p.title, p.body, p.created_at, p.updated_at,
-        GROUP_CONCAT(pi.id, ',', pi.image ORDER BY pi.id SEPARATOR ';') AS images
-        FROM posts p
-        LEFT JOIN posts_images pi ON p.id = pi.post_id AND pi.is_active = ?
-        WHERE p.id = ? AND p.is_active = ?
-        GROUP BY p.id`;
+    static async getOnePost({postId, userId}) {
 
-        const [rows, _] = await db.execute(sql, [true, id, true])
-        console.log(rows);
+        const sql = `
+        SELECT JSON_OBJECT(
+            'id', p.id,
+            'title', p.title,
+            'body', p.body,
+            'created_at', p.created_at,
+            'updated_at', p.updated_at,
+            'images', COALESCE(
+                (
+                    SELECT JSON_ARRAYAGG(
+                        JSON_OBJECT(
+                            'id', pi.id,
+                            'url', pi.image
+                        )
+                    )
+                    FROM posts_images pi
+                    WHERE pi.post_id = p.id AND pi.is_active = ?
+                ),
+                JSON_ARRAY()
+            ),
+            'likes_count', (
+                SELECT COUNT(*)
+                FROM post_likes pl
+                WHERE pl.post_id = p.id
+            ),
+            'is_liked', (
+                SELECT CASE WHEN EXISTS (
+                    SELECT 1
+                    FROM post_likes pl
+                    WHERE pl.post_id = p.id AND pl.liked_by = ?
+                ) THEN 1 ELSE 0 END
+            ),
+            'created_by', (
+                SELECT JSON_OBJECT(
+                    'id', u.id,
+                    'name', u.name,
+                    'profile_picture', u.profile_picture
+                )
+                FROM users u
+                WHERE u.id = p.created_by
+            )
+        ) AS result
+        FROM posts p
+        WHERE p.id = ? AND p.is_active = ?
+        `
+
+        const [rows, _] = await db.execute(sql, [true, !userId ? 0 : userId, postId, true])
         if(rows.length === 0) {
             return false;
         }
-
-        const post = {
-            id: rows[0].id,
-            title: rows[0].title,
-            body: rows[0].body,
-            created_at: rows[0].created_at,
-            updated_at: rows[0].updated_at,
-            images: [],
-          };
-        
-        // images will have this pattern
-        // images: '36,/uploads/post-115-ec3ecac8-114e-47a7-aaff-f183c2376c9d.jpeg;37,/uploads/post-115-5579746d-2cc3-4470-9176-0e99666247a8.jpeg'
-        const images = rows[0].images ? rows[0].images.split(';') : [];
-        
-        for (const image of images) {
-            const [imageId, imagePath] = image.split(',');
-            post.images.push({ id: parseInt(imageId), url: imagePath });
-        }
-        return {post}
+        const post = rows[0].result
+        return post
     }
 
     static async updateById({toBeUpdatedFields, postId}) {
