@@ -41,8 +41,8 @@ class PostsImages {
     static async deletePostImage({imageId}) {
         const dateTime = getCurrentDateTime()
         const sql = `UPDATE posts_images SET is_active = ?, updated_at = ? 
-        WHERE id = ?`
-        await db.execute(sql, [false, dateTime, imageId])
+        WHERE id = ? AND is_active = ?`
+        await db.execute(sql, [false, dateTime, imageId, true])
     }
 
 }

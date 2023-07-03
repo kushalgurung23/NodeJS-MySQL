@@ -31,11 +31,44 @@ const getAllPosts = async (req, res) => {
 
 const createNewPost = async (req, res) => {
 
-    const {title, body} = req.body
-    if(!title || !body) {
-        throw new CustomError.BadRequestError('Please provide both title and body.')
+    const {userId} = req.user
+    const {
+        title, 
+        body, 
+        rent_type, 
+        address, 
+        initial_price, 
+        monthly_price, 
+        number_of_rooms, 
+        has_wifi,
+        has_bike_parking,
+        has_car_parking,
+        has_hot_water,
+        has_bathroom,
+        has_toilet
+    } = req.body
+
+    if(!title || !body || !rent_type || !address || !initial_price || !monthly_price || !number_of_rooms || !has_wifi ||
+       !has_bike_parking || !has_car_parking || !has_hot_water || !has_bathroom || !has_toilet) {
+        throw new CustomError.BadRequestError('Please provide all details.')
     }
-    const post = new Post({title, body})
+    const post = new Post({
+        title, 
+        body, 
+        created_by: userId, 
+        rent_type, 
+        address, 
+        initial_price, 
+        monthly_price, 
+        number_of_rooms, 
+        has_wifi, 
+        has_bike_parking,
+        has_car_parking,
+        has_hot_water,
+        has_bathroom,
+        has_toilet
+
+    })
     const newPostId = await post.save();
     // IF POST ALSO HAS IMAGES
     if(req.files) {
@@ -93,7 +126,7 @@ const deletePost = async (req, res) => {
         throw new CustomError.NotFoundError(`Post of id: ${postId} does not exists.`)
     }
     await Post.deletePost({postId})
-    res.status(200).json({status: 'Success', msg: "Post is deleted successfully."})
+    res.status(StatusCodes.OK).json({status: 'Success', msg: "Post is deleted successfully."})
 }
 
 const deletePostImage = async (req, res) => {
@@ -107,7 +140,41 @@ const deletePostImage = async (req, res) => {
         throw new CustomError.NotFoundError(`Post image of id: ${imageId} does not exists.`)
     }
     await PostsImages.deletePostImage({imageId})
-    res.status(200).json({status: 'Success', msg: "Post image is deleted successfully."})
+    res.status(StatusCodes.OK).json({status: 'Success', msg: "Post image is deleted successfully."})
+}
+
+const togglePostLike = async (req, res) => {
+    const {userId} = req.user
+    const {post_id} = req.body
+    if(!post_id) {
+        throw new CustomError.BadRequestError('Please provide post id.')
+    }
+    const post = await Post.findById(post_id)
+    if(!post) {
+        throw new CustomError.NotFoundError('Please make sure you have provided a correct post id.')
+    }
+    await Post.togglePostLike({postId: post_id, userId})
+    res.status(StatusCodes.OK).json({
+        status: 'Success',
+        msg: 'Successfully toggled the post\'s like status.'
+    })
+}
+
+const togglePostSave = async (req, res) => {
+    const {userId} = req.user
+    const {post_id} = req.body
+    if(!post_id) {
+        throw new CustomError.BadRequestError('Please provide post id.')
+    }
+    const post = await Post.findById(post_id)
+    if(!post) {
+        throw new CustomError.NotFoundError('Please make sure you have provided a correct post id.')
+    }
+    await Post.togglePostSave({postId: post_id, userId})
+    res.status(StatusCodes.OK).json({
+        status: 'Success',
+        msg: 'Successfully toggled the post\'s save status.'
+    })
 }
 
 module.exports = {
@@ -116,5 +183,7 @@ module.exports = {
     getPostById,
     updatePost,
     deletePost,
-    deletePostImage
+    deletePostImage,
+    togglePostLike,
+    togglePostSave
 }

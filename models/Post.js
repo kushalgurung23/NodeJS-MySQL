@@ -2,9 +2,37 @@ const db = require('../config/db')
 const {getCurrentDateTime} = require('../utils')
 
 class Post {
-    constructor({title, body}) {
+    constructor({
+        title, 
+        body,
+        created_by,
+        rent_type, 
+        address, 
+        initial_price, 
+        monthly_price, 
+        number_of_rooms, 
+        has_wifi,
+        has_bike_parking,
+        has_car_parking,
+        has_hot_water,
+        has_bathroom,
+        has_toilet
+    }) {
         this.title = title
         this.body = body
+        this.created_by = created_by
+        this.rent_type = rent_type
+        this.address = address
+        this.initial_price = initial_price
+        this.monthly_price = monthly_price
+        this.number_of_rooms = number_of_rooms
+        this.has_wifi = has_wifi
+        this.has_bike_parking = has_bike_parking
+        this.has_car_parking = has_car_parking
+        this.has_hot_water = has_hot_water
+        this.has_bathroom = has_bathroom
+        this.has_toilet = has_toilet
+
     }
 
     async save() {
@@ -15,10 +43,41 @@ class Post {
             body, 
             created_at,
             updated_at,
-            is_active
+            is_active,
+            created_by,
+            rent_type,
+            address,
+            initial_price,
+            monthly_price,
+            number_of_rooms,
+            has_wifi,
+            has_bike_parking,
+            has_car_parking,
+            has_hot_water, 
+            has_bathroom,
+            has_toilet
         )
-        VALUES (?, ?, ?, ?, ?)`
-        const [result] = await db.execute(sql, [this.title, this.body, dateTime, dateTime, true])
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        
+        const [result] = await db.execute(sql, [
+            this.title, 
+            this.body, 
+            dateTime, 
+            dateTime, 
+            true,
+            this.created_by,
+            this.rent_type,
+            this.address,
+            this.initial_price,
+            this.monthly_price,
+            this.number_of_rooms,
+            this.has_wifi,
+            this.has_bike_parking,
+            this.has_car_parking,
+            this.has_hot_water,
+            this.has_bathroom,
+            this.has_toilet
+        ])
         return(result.insertId);
     }
 
@@ -41,6 +100,18 @@ class Post {
             'body', p.body,
             'created_at', p.created_at,
             'updated_at', p.updated_at,
+            'is_active', p.is_active,
+            'rent_type', p.rent_type,
+            'address', p.address,
+            'initial_price', p.initial_price,
+            'monthly_price', p.monthly_price,
+            'number_of_rooms', p.number_of_rooms,
+            'has_wifi', p.has_wifi,
+            'has_bike_parking', p.has_bike_parking,
+            'has_car_parking', p.has_car_parking,
+            'has_hot_water', p.has_hot_water,
+            'has_bathroom', p.has_bathroom,
+            'has_toilet', p.has_toilet,
             'images', COALESCE(
                 (
                     SELECT JSON_ARRAYAGG(
@@ -56,14 +127,14 @@ class Post {
             ),
             'likes_count', (
                 SELECT COUNT(*)
-                FROM post_likes pl
-                WHERE pl.post_id = p.id
+                FROM posts_likes pl
+                WHERE pl.post_id = p.id AND pl.is_active = ?
             ),
             'is_liked', (
                 SELECT CASE WHEN EXISTS (
                     SELECT 1
-                    FROM post_likes pl
-                    WHERE pl.post_id = p.id AND pl.liked_by = ?
+                    FROM posts_likes pl
+                    WHERE pl.post_id = p.id AND pl.liked_by = ? AND pl.is_active = ?
                 ) THEN 1 ELSE 0 END
             ),
             'created_by', (
@@ -73,13 +144,13 @@ class Post {
                     'profile_picture', u.profile_picture
                 )
                 FROM users u 
-                WHERE p.created_by = u.id
+                WHERE p.created_by = u.id AND u.is_active = ?
             )
         ) AS post
         FROM posts p
         WHERE p.is_active = ?`
        
-        let postsValues = [true, !userId ? 0 : userId, true]
+        let postsValues = [true, true, !userId ? 0 : userId, true, true, true]
         if(search) {
             postsSql+= ` AND p.title LIKE ?`
             postsValues.push(`%${search}%`)
@@ -126,6 +197,18 @@ class Post {
             'body', p.body,
             'created_at', p.created_at,
             'updated_at', p.updated_at,
+            'is_active', p.is_active,
+            'rent_type', p.rent_type,
+            'address', p.address,
+            'initial_price', p.initial_price,
+            'monthly_price', p.monthly_price,
+            'number_of_rooms', p.number_of_rooms,
+            'has_wifi', p.has_wifi,
+            'has_bike_parking', p.has_bike_parking,
+            'has_car_parking', p.has_car_parking,
+            'has_hot_water', p.has_hot_water,
+            'has_bathroom', p.has_bathroom,
+            'has_toilet', p.has_toilet,
             'images', COALESCE(
                 (
                     SELECT JSON_ARRAYAGG(
@@ -141,14 +224,14 @@ class Post {
             ),
             'likes_count', (
                 SELECT COUNT(*)
-                FROM post_likes pl
-                WHERE pl.post_id = p.id
+                FROM posts_likes pl
+                WHERE pl.post_id = p.id AND pl.is_active = ?
             ),
             'is_liked', (
                 SELECT CASE WHEN EXISTS (
                     SELECT 1
-                    FROM post_likes pl
-                    WHERE pl.post_id = p.id AND pl.liked_by = ?
+                    FROM posts_likes pl
+                    WHERE pl.post_id = p.id AND pl.liked_by = ? AND pl.is_active = ?
                 ) THEN 1 ELSE 0 END
             ),
             'created_by', (
@@ -158,14 +241,14 @@ class Post {
                     'profile_picture', u.profile_picture
                 )
                 FROM users u
-                WHERE u.id = p.created_by
+                WHERE u.id = p.created_by AND u.is_active = ?
             )
         ) AS result
         FROM posts p
         WHERE p.id = ? AND p.is_active = ?
         `
 
-        const [rows, _] = await db.execute(sql, [true, !userId ? 0 : userId, postId, true])
+        const [rows, _] = await db.execute(sql, [true, true, !userId ? 0 : userId, true, true, postId, true])
         if(rows.length === 0) {
             return false;
         }
@@ -204,14 +287,82 @@ class Post {
     // POST's status will be set to in_active
     static async deletePost({postId}) {
         const dateTime = getCurrentDateTime()
-        const values = [false, dateTime, postId]
+        const values = [false, dateTime, postId, true]
         // REMOVE post
-        const postSql = `UPDATE posts SET is_active = ?, updated_at = ? WHERE id = ?`
+        const postSql = `UPDATE posts SET is_active = ?, updated_at = ? WHERE id = ? AND is_active = ?`
         await db.execute(postSql, values)
         
         // REMOVE post's images
-        const postImageSql = `UPDATE posts_images SET is_active = ?, updated_at = ? WHERE post_id = ?`
+        const postImageSql = `UPDATE posts_images SET is_active = ?, updated_at = ? WHERE post_id = ? AND is_active = ?`
         await db.execute(postImageSql, values)
+    }
+
+    static async togglePostLike({postId, userId}) {
+        const dateTime = getCurrentDateTime()
+
+        const findSql = `SELECT COUNT(*) AS COUNT FROM posts_likes WHERE
+        post_id = ? AND liked_by = ? AND is_active = ?
+        `
+        const [count, _] = await db.execute(findSql, [postId, userId, true])
+        
+        const totalCount = count[0].COUNT;
+        // IF USER HAS ALREADY LIKED THE POST, DELETE THE ROW
+        if(totalCount === 1 || totalCount >= 1) {
+            const deleteSql = `
+            DELETE FROM posts_likes WHERE post_id = ? AND liked_by = ? AND is_active = ?
+            `
+            await db.execute(deleteSql, [postId, userId, true])
+            
+        }
+        // ELSE INSERT THE ROW
+        else {  
+            const insertSql = 
+            `
+            INSERT INTO posts_likes (
+                post_id,
+                liked_by,
+                created_at,
+                updated_at,
+                is_active
+            )
+            VALUES (?, ?, ?, ?, ?)
+            `
+            await db.execute(insertSql, [postId, userId, dateTime, dateTime, true])
+        }
+    }
+
+    static async togglePostSave({postId, userId}) {
+        const dateTime = getCurrentDateTime()
+
+        const findSql = `SELECT COUNT(*) AS COUNT FROM posts_saves WHERE
+        post_id = ? AND saved_by = ? AND is_active = ?
+        `
+        const [count, _] = await db.execute(findSql, [postId, userId, true])
+        
+        const totalCount = count[0].COUNT;
+        // IF USER HAS ALREADY SAVED THE POST, DELETE THE ROW
+        if(totalCount === 1 || totalCount >= 1) {
+            const deleteSql = `
+            DELETE FROM posts_saves WHERE post_id = ? AND saved_by = ? AND is_active = ?
+            `
+            await db.execute(deleteSql, [postId, userId, true])
+            
+        }
+        // ELSE INSERT THE ROW
+        else {  
+            const insertSql = 
+            `
+            INSERT INTO posts_saves (
+                post_id,
+                saved_by,
+                created_at,
+                updated_at,
+                is_active
+            )
+            VALUES (?, ?, ?, ?, ?)
+            `
+            await db.execute(insertSql, [postId, userId, dateTime, dateTime, true])
+        }
     }
 }
 

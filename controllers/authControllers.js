@@ -15,9 +15,9 @@ const {
 
 const registerUser = async (req, res) => {
 
-    const {email, name, password} = req.body
+    const {email, name, password, role} = req.body
     // If user has not provided any input
-    if(!name || !email || !password) {
+    if(!name || !email || !password || !role ) {
         throw new CustomError.BadRequestError('Please provider all user details.')
     }
     const emailAlreadyExists = await User.findUserByEmail({email})
@@ -29,10 +29,14 @@ const registerUser = async (req, res) => {
     // while saving in db, we save the hashed verification code
     const hashToken = createHash(verificationToken)
     const hashPassword = await generateHashPassword({password})
-    const user = new User({name, email, password: hashPassword, role: "user", verificationToken: hashToken})
+    // token will only be valid for fifteen minutes
+    const fifteenMinutes = 1000 * 60 * 15
+    const verificationTokenExpirationDate = new Date(Date.now() + fifteenMinutes)
+    const user = new User({name, email, password: hashPassword, role, verificationToken: hashToken, verificationTokenExpirationDate})
+    
     await user.save()
     const message = 
-    `<p>We are very pleased to welcome you to our application. Please verify your email by entering the following 6-digit code in our application:</p>
+    `<p>We are very pleased to welcome you to our application. Please verify your email by entering the following 6-digit code in our application within <b><u>15 minutes</u></b>:</p>
     <h2>${verificationToken}</h2>
     `
     // While sending token in email, we do not send the hashed token
@@ -42,6 +46,7 @@ const registerUser = async (req, res) => {
         message,
         subject: 'Email Verification'
     })
+    
     res.status(StatusCodes.CREATED).json({status: 'Success', msg: 'User is created successfully.'})
 }
 
@@ -56,9 +61,14 @@ const verifyEmail = async (req, res) => {
     if(verificationToken.length !== 6) {
         throw new CustomError.BadRequestError('Invalid verification token.')
     }
+
     const user = await User.findUserByEmail({email})
     if(!user) {
         throw new CustomError.UnauthenticatedError('Verification failed.')
+    }
+    const currentDate = Date.now()
+    if(user.verification_token_expiration_date < currentDate) {
+        throw new CustomError.UnauthenticatedError('Verification time period is over. Please request new code.')
     }
     if(user.is_verified === 1 && user.verified_on !== null) {
         throw new CustomError.UnauthenticatedError(`User was already verified on ${user.verified_on}.`)
@@ -94,10 +104,13 @@ const resendVerificationToken = async (req, res) => {
     const verificationToken = Math.floor(100000 + Math.random() * 900000);
     // while saving verificationToken in db, we will hash it
     const hashToken = createHash(verificationToken)
-    await User.updateVerificationToken({email, newToken: hashToken})
+    // token will only be valid for fifteen minutes
+    const fifteenMinutes = 1000 * 60 * 15
+    const verificationTokenExpirationDate = new Date(Date.now() + fifteenMinutes)
+    await User.updateVerificationToken({email, newToken: hashToken, verificationTokenExpirationDate})
     
     const message = 
-    `<p>Please confirm your email by entering the following 6-digit code in our application:</p>
+    `<p>Please confirm your email by entering the following 6-digit code in our application within <b><u>15 minutes</u></b>:</p>
     <h2>${verificationToken}</h2>
     `
     // While sending token in email, we do not send the hashed token
@@ -150,6 +163,7 @@ const logout = async (req, res) => {
     res.status(StatusCodes.OK).json({status: "Success", msg: 'user is logged out successfully.' });
 };
 
+// WHEN USER CLICKS ON FORGOT PASSWORD ON MOBILE APP
 const forgotPassword = async (req, res) => {
     const {email} = req.body
     if(!email) {
@@ -161,7 +175,7 @@ const forgotPassword = async (req, res) => {
         // random six digits number
         const verificationToken = Math.floor(100000 + Math.random() * 900000);
         // while sending email, we do not hash the verification token
-        const message = `<p>In order to reset your password, please enter the following 6-digit code in the application within 15 minutes:</p>
+        const message = `<p>In order to reset your password, please enter the following 6-digit code in the application within <b><u>15 minutes</u></b>:</p>
         <h2>${verificationToken}</h2>
         `
         await sendCustomMessageEmail({
@@ -170,7 +184,7 @@ const forgotPassword = async (req, res) => {
             message,
             subject: 'Reset Password'
         })
-        // user will have to provide the token within ten minutes to be able to enter their new password
+        // user will have to provide the token within fifteen minutes to be able to enter their new password
         const fifteenMinutes = 1000 * 60 * 15
         const passwordTokenExpirationDate = new Date(Date.now() + fifteenMinutes)
         // hashing the forgot password verifiacation token before saving in db
@@ -184,6 +198,7 @@ const forgotPassword = async (req, res) => {
     res.status(StatusCodes.OK).json({status: 'Success', msg: "Please check your email for reset password code."})
 }
 
+// VERIFICATION CODE SCREEN 
 const checkPasswordForgotToken = async (req, res) => {
     const {token, email} = req.body
     if(!email || !token) {
@@ -193,16 +208,15 @@ const checkPasswordForgotToken = async (req, res) => {
     if(!user) {
         throw new CustomError.UnauthenticatedError('6 digit code does not match.')
     }
+
+    const currentDate = Date.now()
+    if(user.password_forgot_token_expiration_date < currentDate) {
+        throw new CustomError.UnauthenticatedError('Password reset time period is over. Please start all over again.')
+    }
     
      // user.password_forgot_token is hashed already, so token received from user input is also hashed in order to check if both are equal
     if(user.password_forgot_token !== createHash(token)) {
         throw new CustomError.UnauthenticatedError('6 digit code does not match.')
-    }
-
-    const currentDate = getCurrentDateTime()
-
-    if(user.password_forgot_token_expiration_date < currentDate) {
-        throw new CustomError.UnauthenticatedError('Password reset time period is over. Please start all over again.')
     }
 
     await User.verifyForgotPasswordToken({email})
@@ -210,6 +224,7 @@ const checkPasswordForgotToken = async (req, res) => {
     res.status(StatusCodes.OK).json({status: "Success", msg: "6 digit code matches successfully."})
 }
 
+// NEW PASSWORD ENTRY SCREEN
 const resetPassword = async (req, res) => {
     // password is provided by user
     // token and email is received from query parameter when clicked on link from email
@@ -221,19 +236,19 @@ const resetPassword = async (req, res) => {
     if(!user) {
         throw new CustomError.UnauthenticatedError('Authentication Invalid.')
     }
+    const currentDate = Date.now()
+    // checking token exipiration date again. Incase user is already in enter new password screen and turned off mobile for more
+    // than the exipry time. In this case, we will throw time out exception
+    if(user.password_forgot_token_expiration_date < currentDate) {
+      throw new CustomError.UnauthenticatedError('Password reset time period is over. Please start all over again.')
+    }
     if(!user.is_password_forgot_token_verified) {   
         throw new CustomError.UnauthenticatedError('Error, please make sure that you provided the correct password forgot token.')
     }
     if(!user.password_forgot_token || !user.password_forgot_token_expiration_date) {   
         throw new CustomError.UnauthenticatedError('Password reset time period is over. Please start all over again.')
     }
-    const currentDate = getCurrentDateTime()
     
-    // checking token exipiration date again. Incase user is already in enter new password screen and turned off mobile for more
-    // than the exipred date. In this case, we will throw the exception
-    if(user.password_forgot_token_expiration_date < currentDate) {
-      throw new CustomError.UnauthenticatedError('Password reset time period is over. Please start all over again.')
-    }
     const hashPassword = await generateHashPassword({password})
     await User.resetPassword({email, hashPassword})
     await sendCustomMessageEmail({

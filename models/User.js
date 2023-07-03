@@ -2,12 +2,13 @@ const db = require('../config/db')
 const getCurrentDateTime = require('../utils/current_date_time')
 
 class User {
-    constructor({name, email, password, role, verificationToken}) {
+    constructor({name, email, password, role, verificationToken, verificationTokenExpirationDate}) {
         this.name = name,
         this.email = email,
         this.password = password,
         this.role = role,
-        this.verificationToken = verificationToken
+        this.verificationToken = verificationToken,
+        this.verificationTokenExpirationDate = verificationTokenExpirationDate
     }
 
     async save() {
@@ -20,10 +21,11 @@ class User {
             verification_token,
             created_at,
             updated_at,
-            is_active
+            is_active,
+            verification_token_expiration_date
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-        await db.execute(sql, [this.name, this.email, this.password, this.role, this.verificationToken, dateTime, dateTime, true]
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        await db.execute(sql, [this.name, this.email, this.password, this.role, this.verificationToken, dateTime, dateTime, true, this.verificationTokenExpirationDate]
         )
     }
 
@@ -43,18 +45,18 @@ class User {
     static async confirmEmailVerification({email}) {
         const dateTime = getCurrentDateTime()
         const sql = `
-        UPDATE users set verification_token = ?, is_verified = ?, verified_on = ?, updated_at = ? WHERE email = ? AND is_active = ?
+        UPDATE users set verification_token = ?, verification_token_expiration_date = ?, is_verified = ?, verified_on = ?, updated_at = ? WHERE email = ? AND is_active = ?
         `
-        await db.execute(sql, [null, true, dateTime, dateTime, email, true])
+        await db.execute(sql, [null, null, true, dateTime, dateTime, email, true])
     }
 
     // if user wants another verification token for registration
-    static async updateVerificationToken({newToken, email}) {
+    static async updateVerificationToken({newToken, email, verificationTokenExpirationDate}) {
         const dateTime = getCurrentDateTime()
         const sql = `
-        UPDATE users set verification_token = ?, updated_at = ? WHERE email = ? AND is_active = ?
+        UPDATE users set verification_token = ?, updated_at = ?, verification_token_expiration_date = ? WHERE email = ? AND is_active = ?
         `
-        await db.execute(sql, [newToken, dateTime, email, true])
+        await db.execute(sql, [newToken, dateTime, verificationTokenExpirationDate, email, true])
     }
 
     // if user has forgotten the password
