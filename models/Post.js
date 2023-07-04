@@ -32,7 +32,6 @@ class Post {
         this.has_hot_water = has_hot_water
         this.has_bathroom = has_bathroom
         this.has_toilet = has_toilet
-
     }
 
     async save() {
@@ -83,8 +82,11 @@ class Post {
 
     static async findAll({offset, limit, search, order_by, userId}) {
         // TOTAL COUNT
-        let countSql = "SELECT COUNT(*) AS total_posts FROM posts WHERE is_active = ?"
-        let countValues = [true]
+        let countSql = `
+        SELECT COUNT(*) AS total_posts FROM posts p
+        INNER JOIN users u on p.created_by = u.id 
+        WHERE p.is_active = ? AND u.is_active = ?`
+        let countValues = [true, true]
         if(search) {
             countSql+= ` AND title LIKE ?`
             countValues.push(`%${search}%`)
@@ -147,10 +149,11 @@ class Post {
                 WHERE p.created_by = u.id AND u.is_active = ?
             )
         ) AS post
-        FROM posts p
-        WHERE p.is_active = ?`
+        FROM posts p INNER JOIN users u ON
+        p.created_by = u.id
+        WHERE p.is_active = ? AND u.is_active = ?`
        
-        let postsValues = [true, true, !userId ? 0 : userId, true, true, true]
+        let postsValues = [true, true, !userId ? 0 : userId, true, true, true, true]
         if(search) {
             postsSql+= ` AND p.title LIKE ?`
             postsValues.push(`%${search}%`)
@@ -225,12 +228,14 @@ class Post {
             'likes_count', (
                 SELECT COUNT(*)
                 FROM posts_likes pl
+                JOIN users u ON pl.liked_by = u.id AND u.is_active = ?
                 WHERE pl.post_id = p.id AND pl.is_active = ?
             ),
             'is_liked', (
                 SELECT CASE WHEN EXISTS (
                     SELECT 1
                     FROM posts_likes pl
+                    JOIN users u ON pl.liked_by = u.id AND u.is_active = ?
                     WHERE pl.post_id = p.id AND pl.liked_by = ? AND pl.is_active = ?
                 ) THEN 1 ELSE 0 END
             ),
@@ -248,7 +253,7 @@ class Post {
         WHERE p.id = ? AND p.is_active = ?
         `
 
-        const [rows, _] = await db.execute(sql, [true, true, !userId ? 0 : userId, true, true, postId, true])
+        const [rows, _] = await db.execute(sql, [true, true, true, true, !userId ? 0 : userId, true, true, postId, true])
         if(rows.length === 0) {
             return false;
         }

@@ -1,4 +1,5 @@
 const db = require('../config/db')
+const { use } = require('../routes/postRoutes')
 const getCurrentDateTime = require('../utils/current_date_time')
 
 class User {
@@ -127,6 +128,20 @@ class User {
         // THE QUERY AND ITS VALUES WILL BE
         // UPDATE users SET name = ?, updated_at = ? WHERE id = ? AND is_active = ?
         // [ 'golden', '2023-06-16 09:35:11', 28, true ]
+    }
+
+    static async editProfilePicture({profilePicture, userId}) {
+        const dateTime = getCurrentDateTime()
+        const sql = `
+        UPDATE users set profile_picture = ?, updated_at = ? WHERE id = ? AND is_active = ?
+        `
+        await db.execute(sql, [profilePicture, dateTime, userId, true])
+    }
+
+    static async deleteUserAccount({userId}) {
+        const dateTime = getCurrentDateTime()
+        const sql = `UPDATE users SET is_active = ?, updated_at = ? WHERE id = ?`
+        await db.execute(sql, [false, dateTime, userId])
     }
 
 }

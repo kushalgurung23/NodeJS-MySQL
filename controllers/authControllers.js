@@ -9,8 +9,7 @@ const {
     createTokenUser,
     createJWT, 
     TokenType, 
-    sendCustomMessageEmail,
-    getCurrentDateTime,
+    sendCustomMessageEmail
 } = require('../utils');
 
 const registerUser = async (req, res) => {
@@ -275,6 +274,15 @@ const generateNewAccessToken = async (req, res) => {
     res.status(StatusCodes.OK).json({status: "Success", accessToken: accessJWT})
 }
 
+const deactivateAccount = async(req, res) => {
+    const {userId} = req.user
+    if(!userId) {
+        throw new CustomError.UnauthenticatedError('Please login before trying again.')
+    }
+    await User.deleteUserAccount({userId})
+    res.status(StatusCodes.OK).json({status: "Success", msg: "Account has been deactivated successfully."})
+}
+
 module.exports = {
     registerUser,
     verifyEmail,
@@ -284,5 +292,6 @@ module.exports = {
     forgotPassword,
     checkPasswordForgotToken,
     resetPassword,
-    generateNewAccessToken
+    generateNewAccessToken,
+    deactivateAccount
 }
