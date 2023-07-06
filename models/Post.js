@@ -130,12 +130,14 @@ class Post {
             'likes_count', (
                 SELECT COUNT(*)
                 FROM posts_likes pl
+                INNER JOIN users u ON pl.liked_by = u.id AND u.is_active = ?
                 WHERE pl.post_id = p.id AND pl.is_active = ?
             ),
             'is_liked', (
                 SELECT CASE WHEN EXISTS (
                     SELECT 1
                     FROM posts_likes pl
+                    INNER JOIN users u ON pl.liked_by = u.id AND u.is_active = ?
                     WHERE pl.post_id = p.id AND pl.liked_by = ? AND pl.is_active = ?
                 ) THEN 1 ELSE 0 END
             ),
@@ -149,11 +151,12 @@ class Post {
                 WHERE p.created_by = u.id AND u.is_active = ?
             )
         ) AS post
-        FROM posts p INNER JOIN users u ON
+        FROM posts p 
+        INNER JOIN users u ON
         p.created_by = u.id
         WHERE p.is_active = ? AND u.is_active = ?`
        
-        let postsValues = [true, true, !userId ? 0 : userId, true, true, true, true]
+        let postsValues = [true, true, true, true, !userId ? 0 : userId, true, true, true, true]
         if(search) {
             postsSql+= ` AND p.title LIKE ?`
             postsValues.push(`%${search}%`)
@@ -185,8 +188,15 @@ class Post {
     }
 
     static async findById(id) {
-        const sql = `SELECT id FROM posts where is_active = ? AND id = ?`
-        const [post, _] = await db.execute(sql, [true, id])
+        const sql = `
+        SELECT id FROM posts p
+        INNER JOIN users u ON
+        p.created_by = u.id
+        WHERE p.is_active = ? 
+        AND p.id = ?
+        AND u.is_active = ?
+        `
+        const [post, _] = await db.execute(sql, [true, id, true])
         return post[0]
     }
 
@@ -228,14 +238,14 @@ class Post {
             'likes_count', (
                 SELECT COUNT(*)
                 FROM posts_likes pl
-                JOIN users u ON pl.liked_by = u.id AND u.is_active = ?
+                INNER JOIN users u ON pl.liked_by = u.id AND u.is_active = ?
                 WHERE pl.post_id = p.id AND pl.is_active = ?
             ),
             'is_liked', (
                 SELECT CASE WHEN EXISTS (
                     SELECT 1
                     FROM posts_likes pl
-                    JOIN users u ON pl.liked_by = u.id AND u.is_active = ?
+                    INNER JOIN users u ON pl.liked_by = u.id AND u.is_active = ?
                     WHERE pl.post_id = p.id AND pl.liked_by = ? AND pl.is_active = ?
                 ) THEN 1 ELSE 0 END
             ),
@@ -250,10 +260,13 @@ class Post {
             )
         ) AS result
         FROM posts p
-        WHERE p.id = ? AND p.is_active = ?
+        INNER JOIN users u ON
+        p.created_by = u.id
+        WHERE p.id = ? AND p.is_active = ? AND u.is_active = ?
         `
 
-        const [rows, _] = await db.execute(sql, [true, true, true, true, !userId ? 0 : userId, true, true, postId, true])
+        const [rows, _] = await db.execute(sql, 
+            [true, true, true, true, !userId ? 0 : userId, true, true, postId, true, true])
         if(rows.length === 0) {
             return false;
         }
@@ -305,18 +318,27 @@ class Post {
     static async togglePostLike({postId, userId}) {
         const dateTime = getCurrentDateTime()
 
-        const findSql = `SELECT COUNT(*) AS COUNT FROM posts_likes WHERE
-        post_id = ? AND liked_by = ? AND is_active = ?
+        const findSql = `SELECT COUNT(*) AS COUNT FROM posts_likes pl
+        INNER JOIN users u on u.id = pl.liked_by AND u.is_active = ?
+        WHERE
+        pl.post_id = ? AND pl.liked_by = ? AND pl.is_active = ?
         `
-        const [count, _] = await db.execute(findSql, [postId, userId, true])
+        const [count, _] = await db.execute(findSql, [true, postId, userId, true])
         
         const totalCount = count[0].COUNT;
         // IF USER HAS ALREADY LIKED THE POST, DELETE THE ROW
         if(totalCount === 1 || totalCount >= 1) {
+
             const deleteSql = `
-            DELETE FROM posts_likes WHERE post_id = ? AND liked_by = ? AND is_active = ?
+            DELETE pl
+            FROM posts_likes pl 
+            INNER JOIN users u ON pl.liked_by = u.id
+            WHERE pl.post_id = ? 
+            AND pl.liked_by = ? 
+            AND pl.is_active = ?
+            AND u.is_active = ?
             `
-            await db.execute(deleteSql, [postId, userId, true])
+            await db.execute(deleteSql, [postId, userId, true, true])
             
         }
         // ELSE INSERT THE ROW
@@ -339,18 +361,26 @@ class Post {
     static async togglePostSave({postId, userId}) {
         const dateTime = getCurrentDateTime()
 
-        const findSql = `SELECT COUNT(*) AS COUNT FROM posts_saves WHERE
-        post_id = ? AND saved_by = ? AND is_active = ?
+        const findSql = `SELECT COUNT(*) AS COUNT FROM posts_saves ps
+        INNER JOIN users u on u.id = ps.saved_by AND u.is_active = ?
+        WHERE
+        ps.post_id = ? AND ps.saved_by = ? AND ps.is_active = ?
         `
-        const [count, _] = await db.execute(findSql, [postId, userId, true])
+        const [count, _] = await db.execute(findSql, [true, postId, userId, true])
         
         const totalCount = count[0].COUNT;
         // IF USER HAS ALREADY SAVED THE POST, DELETE THE ROW
         if(totalCount === 1 || totalCount >= 1) {
             const deleteSql = `
-            DELETE FROM posts_saves WHERE post_id = ? AND saved_by = ? AND is_active = ?
+            DELETE ps
+            FROM posts_saves ps
+            INNER JOIN users u ON ps.saved_by = u.id
+            WHERE ps.post_id = ? 
+            AND ps.saved_by = ?
+            AND ps.is_active = ?
+            AND u.is_active = ?
             `
-            await db.execute(deleteSql, [postId, userId, true])
+            await db.execute(deleteSql, [postId, userId, true, true])
             
         }
         // ELSE INSERT THE ROW
